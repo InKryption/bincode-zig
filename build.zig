@@ -11,12 +11,12 @@ pub fn build(b: *Build) void {
     test_step.dependOn(unit_test_step);
 
     const bincode = b.addModule("bincode", .{
-        .root_source_file = .{ .path = "src/bincode.zig" },
+        .root_source_file = b.path("src/bincode.zig"),
     });
     _ = bincode;
 
     const unit_test_exe = b.addTest(.{
-        .root_source_file = .{ .path = "src/bincode.zig" },
+        .root_source_file = b.path("src/bincode.zig"),
         .target = target,
         .optimize = optimize,
         .filters = test_filters orelse &.{},
