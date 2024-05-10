@@ -1,8 +1,10 @@
-pub inline fn format(comptime int_type: bincode.int.IntType) Format(int_type) {
+pub const RoundingMode = enum { unrounded, rounded_type };
+
+pub inline fn format(comptime rounding_mode: RoundingMode) Format(rounding_mode) {
     return .{};
 }
 
-pub fn Format(comptime int_type: bincode.int.IntType) type {
+pub fn Format(comptime rounding_mode: RoundingMode) type {
     return struct {
         const Self = @This();
 
@@ -14,6 +16,8 @@ pub fn Format(comptime int_type: bincode.int.IntType) type {
             value: anytype,
             writer: anytype,
         ) !void {
+            const T = @TypeOf(value.*);
+            const int_type = intTypeFrom(T, rounding_mode) orelse @compileError("Unsupported integer type " ++ @typeName(T));
             try bincode.int.writeInt(writer, int_config, int_type, value.*);
         }
 
@@ -24,7 +28,11 @@ pub fn Format(comptime int_type: bincode.int.IntType) type {
             /// `*T`, where `@typeInfo(T) == .Int`
             value: anytype,
             reader: anytype,
+            allocator: std.mem.Allocator,
         ) !void {
+            _ = allocator;
+            const T = @TypeOf(value.*);
+            const int_type = intTypeFrom(T, rounding_mode) orelse @compileError("Unsupported integer type " ++ @typeName(T));
             value.* = try bincode.int.readInt(reader, int_config, int_type);
         }
 
@@ -33,10 +41,20 @@ pub fn Format(comptime int_type: bincode.int.IntType) type {
             int_config: bincode.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Int`
             value: anytype,
+            allocator: std.mem.Allocator,
         ) void {
             _ = int_config;
-            comptime assert(@typeInfo(@TypeOf(value.*)) == .Int);
+            _ = allocator;
+            const T = @TypeOf(value.*);
+            _ = intTypeFrom(T, rounding_mode) orelse @compileError("Unsupported integer type " ++ @typeName(T));
         }
+    };
+}
+
+inline fn intTypeFrom(comptime T: type, rounding_mode: RoundingMode) ?bincode.int.IntType {
+    comptime return switch (rounding_mode) {
+        .unrounded => bincode.int.IntType.fromType(T),
+        .rounded_type => bincode.int.IntType.fromTypeRounded(T),
     };
 }
 

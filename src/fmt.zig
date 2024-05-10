@@ -37,12 +37,13 @@ pub fn decode(
     ///
     /// The stream that the data will be read and decoded from.
     reader: anytype,
+    allocator: std.mem.Allocator,
 ) (DataFormat(@TypeOf(ctx)).DecodeError(@TypeOf(value.*)) || @TypeOf(reader).Error)!void {
     if (@TypeOf(reader) != std.io.AnyReader) {
         const any_reader: std.io.AnyReader = reader.any();
-        return @errorCast(decode(ctx, int_config, value, any_reader));
+        return @errorCast(decode(ctx, int_config, value, any_reader, allocator));
     }
-    return dataFormat(ctx).decode(int_config, value, reader);
+    return dataFormat(ctx).decode(int_config, value, reader, allocator);
 }
 
 pub fn decodeCopy(
@@ -54,9 +55,10 @@ pub fn decodeCopy(
     ///
     /// The stream that the data will be read and decoded from.
     reader: anytype,
+    allocator: std.mem.Allocator,
 ) (DataFormat(@TypeOf(ctx)).DecodeError(T) || @TypeOf(reader).Error)!T {
     var value: T = undefined;
-    try decode(ctx, int_config, &value, reader);
+    try decode(ctx, int_config, &value, reader, allocator);
     return value;
 }
 
@@ -68,8 +70,9 @@ pub fn freeDecoded(
     ///
     /// Pointer to the decoded data that must be deinitialised.
     value: anytype,
+    allocator: std.mem.Allocator,
 ) void {
-    return dataFormat(ctx).freeDecoded(int_config, value);
+    return dataFormat(ctx).freeDecoded(int_config, value, allocator);
 }
 
 pub inline fn dataFormat(ctx: anytype) DataFormat(@TypeOf(ctx)) {
@@ -143,13 +146,14 @@ pub fn DataFormat(comptime Ctx: type) type {
             ///
             /// The stream that the data will be read and decoded from.
             reader: anytype,
+            allocator: std.mem.Allocator,
         ) (DecodeError(@TypeOf(value.*)) || @TypeOf(reader).Error)!void {
             const ptr_info = @typeInfo(@TypeOf(value)).Pointer;
             if (ptr_info.size != .One) {
                 @compileError("Expected `*T`, got " ++ @typeName(@TypeOf(value)));
             }
             value.* = undefined;
-            return cdf.ctx.decode(int_config, value, reader);
+            return cdf.ctx.decode(int_config, value, reader, allocator);
         }
 
         pub inline fn freeDecoded(
@@ -159,13 +163,14 @@ pub fn DataFormat(comptime Ctx: type) type {
             ///
             /// Pointer to the decoded data that must be deinitialised.
             value: anytype,
+            allocator: std.mem.Allocator,
         ) void {
             make_const: {
                 const const_value = makeConstPtr(value);
                 if (@TypeOf(const_value) == @TypeOf(value)) break :make_const;
-                return cdf.freeDecoded(int_config, const_value);
+                return cdf.freeDecoded(int_config, const_value, allocator);
             }
-            return cdf.ctx.freeDecoded(int_config, value);
+            return cdf.ctx.freeDecoded(int_config, value, allocator);
         }
 
         fn makeConstPtr(ptr: anytype) @Type(.{ .Pointer = blk: {
@@ -194,32 +199,16 @@ test "encode/decode tuple of things" {
         c: *const [3]u8,
         d: []const u16,
         e: [2]u64,
+        f: @Vector(4, u16),
 
-        const FieldFmts = struct {
-            a: byte.Format(.signed) = .{},
-            b: int.Format(.i32) = .{},
-            c: list.Format(byte.Format(.unsigned), .encode_len_based_on_type),
-            d: list.Format(int.Format(.u16), .encode_len_based_on_type),
-            e: list.Format(int.Format(.u64), .encode_len_based_on_type),
-        };
-        inline fn tupleFmt(allocator: std.mem.Allocator) tuple.Format(@This(), FieldFmts) {
-            return .{
-                .field_fmts = .{
-                    .c = .{
-                        .child_ctx = .{},
-                        .allocator = allocator,
-                    },
-                    .d = .{
-                        .child_ctx = .{},
-                        .allocator = allocator,
-                    },
-                    .e = .{
-                        .child_ctx = .{},
-                        .allocator = std.testing.failing_allocator,
-                    },
-                },
-            };
-        }
+        const tuple_fmt = tuple.format(@This(), .{
+            .a = byte.format(.signed),
+            .b = int.format(.unrounded),
+            .c = list.format(byte.format(.unsigned), .encode_len_based_on_type),
+            .d = list.format(int.format(.unrounded), .encode_len_based_on_type),
+            .e = list.format(int.format(.unrounded), .encode_len_based_on_type),
+            .f = list.format(int.format(.unrounded), .encode_len_based_on_type),
+        });
     };
 
     const int_config: bincode.int.Config = .{
@@ -232,13 +221,14 @@ test "encode/decode tuple of things" {
         .c = &.{ 255, 255, 255 },
         .d = &.{ 123, 456, 789, 1011 },
         .e = .{ 6, 7 },
+        .f = .{ 32, 33, 34, 75 },
     };
-    try encode(T.tupleFmt(std.testing.failing_allocator), int_config, &value, writer);
+    try encode(T.tuple_fmt, int_config, &value, writer);
+
     fbs.reset();
 
-    const decode_ctx = T.tupleFmt(std.testing.allocator);
-    const decoded = try decodeCopy(decode_ctx, int_config, T, reader);
-    defer freeDecoded(decode_ctx, int_config, &decoded);
+    const decoded = try decodeCopy(T.tuple_fmt, int_config, T, reader, std.testing.allocator);
+    defer freeDecoded(T.tuple_fmt, int_config, &decoded, std.testing.allocator);
 
     try std.testing.expectEqualDeep(value, decoded);
 }

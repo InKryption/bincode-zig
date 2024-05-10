@@ -25,8 +25,10 @@ pub fn Format(comptime signedness: std.builtin.Signedness) type {
             int_config: bincode.int.Config,
             value: *T,
             reader: anytype,
+            allocator: std.mem.Allocator,
         ) !void {
             _ = int_config;
+            _ = allocator;
             value.* = @bitCast(blk: {
                 var byte: u8 = undefined;
                 switch (try reader.readAll((&byte)[0..1])) {
@@ -42,9 +44,11 @@ pub fn Format(comptime signedness: std.builtin.Signedness) type {
             _: Self,
             int_config: bincode.int.Config,
             value: *const T,
+            allocator: std.mem.Allocator,
         ) void {
             _ = int_config;
             _ = value;
+            _ = allocator;
         }
     };
 }

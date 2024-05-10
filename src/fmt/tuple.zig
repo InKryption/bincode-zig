@@ -82,14 +82,15 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
             int_config: bincode.int.Config,
             value: *T,
             reader: anytype,
+            allocator: std.mem.Allocator,
         ) !void {
             @setEvalBranchQuota(fmt_info.fields.len * 4 + 1);
             inline for (fmt_info.fields, 0..) |field, initialized_fields| {
-                errdefer ctx.freeDecodedPartial(int_config, value, initialized_fields);
+                errdefer ctx.freeDecodedFieldsPartial(int_config, value, initialized_fields, allocator);
 
                 const field_value = &@field(value, field.name);
                 const field_fmt = dataFormat(@field(ctx.field_fmts, field.name));
-                try field_fmt.decode(int_config, field_value, reader);
+                try field_fmt.decode(int_config, field_value, reader, allocator);
             }
         }
 
@@ -97,21 +98,23 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
             ctx: Self,
             int_config: bincode.int.Config,
             value: *const T,
+            allocator: std.mem.Allocator,
         ) void {
-            ctx.freeDecodedPartial(int_config, value, fmt_info.fields.len);
+            ctx.freeDecodedFieldsPartial(int_config, value, fmt_info.fields.len, allocator);
         }
 
-        inline fn freeDecodedPartial(
+        inline fn freeDecodedFieldsPartial(
             ctx: Self,
             int_config: bincode.int.Config,
             value: *const T,
             comptime up_to: usize,
+            allocator: std.mem.Allocator,
         ) void {
             @setEvalBranchQuota(fmt_info.fields.len * 3 + 1);
             inline for (fmt_info.fields[0..up_to]) |field| {
                 const field_value = &@field(value, field.name);
                 const field_fmt = dataFormat(@field(ctx.field_fmts, field.name));
-                field_fmt.freeDecoded(int_config, field_value);
+                field_fmt.freeDecoded(int_config, field_value, allocator);
             }
         }
     };
@@ -120,3 +123,5 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
 const bincode = @import("../bincode.zig");
 const DataFormat = bincode.fmt.DataFormat;
 const dataFormat = bincode.fmt.dataFormat;
+
+const std = @import("std");
