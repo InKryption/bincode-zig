@@ -202,9 +202,9 @@ test "encode/decode tuple of things" {
         f: @Vector(4, u16),
 
         const tuple_fmt = tuple.format(@This(), .{
-            .a = byte.format(.signed),
+            .a = byte.format,
             .b = int.format(.unrounded),
-            .c = list.format(byte.format(.unsigned), .encode_len_based_on_type),
+            .c = list.format(byte.format, .encode_len_based_on_type),
             .d = list.format(int.format(.unrounded), .encode_len_based_on_type),
             .e = list.format(int.format(.unrounded), .encode_len_based_on_type),
             .f = list.format(int.format(.unrounded), .encode_len_based_on_type),
