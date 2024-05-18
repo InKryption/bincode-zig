@@ -5,6 +5,7 @@ pub const int = @import("fmt/int.zig");
 pub const optional = @import("fmt/optional.zig");
 pub const list = @import("fmt/list.zig");
 pub const tuple = @import("fmt/tuple.zig");
+pub const tag_union = @import("fmt/tag_union.zig");
 
 pub fn encode(
     /// Must allow `DataFormat(@TypeOf(ctx))`.
@@ -203,6 +204,18 @@ test "encode/decode tuple of things" {
         f: @Vector(4, u16),
         g: ?[]const u16,
         h: ?u64,
+        i: [3]FooBarBaz,
+
+        const FooBarBaz = union(enum) {
+            foo: u32,
+            bar,
+            baz: [2]u8,
+
+            const union_fmt = tag_union.format(.{
+                .foo = int.format(.unrounded),
+                .baz = list.format(byte.format, .encode_len_based_on_type),
+            });
+        };
 
         const tuple_fmt = tuple.format(.{
             .a = byte.format,
@@ -213,6 +226,7 @@ test "encode/decode tuple of things" {
             .f = list.format(int.format(.unrounded), .encode_len_based_on_type),
             .g = optional.format(list.format(int.format(.unrounded), .encode_len_based_on_type)),
             .h = optional.format(int.format(.unrounded)),
+            .i = list.format(FooBarBaz.union_fmt, .encode_len_based_on_type),
         });
     };
 
@@ -229,6 +243,11 @@ test "encode/decode tuple of things" {
         .f = .{ 32, 33, 34, 75 },
         .g = &.{ 1, 2, 3, 4, 5, 6 },
         .h = null,
+        .i = .{
+            .{ .foo = 768 },
+            .bar,
+            .{ .baz = "ao".* },
+        },
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 
