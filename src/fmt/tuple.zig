@@ -1,40 +1,47 @@
 pub inline fn format(
-    comptime T: type,
     /// Struct or tuple whose fields are all `fmt.DataFormat(...)`,
-    /// with each field name corresponding to one in `T`.
-    /// Comptime fields and zero-sized fields are excluded.
+    /// with each field name corresponding to one in the struct for
+    /// which this will be used to encode/decode.
+    /// Comptime fields and zero-sized fields are to be excluded.
     field_fmts: anytype,
-) Format(T, @TypeOf(field_fmts)) {
+) Format(@TypeOf(field_fmts)) {
     return .{ .field_fmts = field_fmts };
 }
 
-pub fn Format(comptime T: type, comptime FieldFormats: type) type {
-    const fmt_info = @typeInfo(FieldFormats).Struct;
-
-    {
+fn verifyFields(comptime T: type, comptime FieldFormats: type) !void {
+    comptime {
         const data_info = @typeInfo(T).Struct;
         @setEvalBranchQuota(data_info.fields.len + 1);
 
-        var required_field_count: usize = 0;
+        const FieldFormatId = std.meta.FieldEnum(FieldFormats);
+        var ignored_fields = std.EnumSet(FieldFormatId).initFull();
+
         for (data_info.fields) |field| {
             if (field.is_comptime or
                 @sizeOf(field.type) == 0 //
             ) {
-                if (@hasField(FieldFormats, field.name)) @compileError(
-                    "Format field '" ++ field.name ++ "' is ignored",
-                );
+                if (@hasField(FieldFormats, field.name)) {
+                    return @field(anyerror, "Format field '" ++ field.name ++ "' is ignored");
+                }
             } else {
-                required_field_count += 1;
-                if (!@hasField(FieldFormats, field.name)) @compileError(
-                    "Format field for '" ++ field.name ++ "' is missing",
-                );
+                if (!@hasField(FieldFormats, field.name)) {
+                    return @field(anyerror, "Format field for '" ++ field.name ++ "' is missing");
+                }
+                ignored_fields.setPresent(@field(FieldFormatId, field.name), false);
             }
         }
 
-        if (fmt_info.fields.len != required_field_count) {
-            @compileError("Unrecognized format fields");
+        var iter = ignored_fields.iterator();
+        if (iter.next()) |field_id| {
+            return @field(anyerror, "Format field '" ++ @tagName(field_id) ++ "' is ignored");
         }
+
+        return;
     }
+}
+
+pub fn Format(comptime FieldFormats: type) type {
+    const fmt_info = @typeInfo(FieldFormats).Struct;
 
     return struct {
         field_fmts: FieldFormats,
@@ -58,14 +65,18 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
         }
 
         pub fn EncodeError(comptime Value: type) type {
+            verifyFields(Value, FieldFormats) catch return error{};
             return EncodeDecodeErrorSets(Value).Encode;
         }
         pub inline fn encode(
             ctx: Self,
             int_config: bincode.int.Config,
-            value: *const T,
+            /// `*const T`, where `@typeInfo(T) == .Struct`
+            value: anytype,
             writer: anytype,
         ) !void {
+            comptime verifyFields(@TypeOf(value.*), FieldFormats) catch |e| @compileError(@errorName(e));
+
             @setEvalBranchQuota(fmt_info.fields.len * 3 + 1);
             inline for (fmt_info.fields) |field| {
                 const field_value = &@field(value, field.name);
@@ -75,15 +86,19 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
         }
 
         pub fn DecodeError(comptime Value: type) type {
+            verifyFields(Value, FieldFormats) catch return error{};
             return EncodeDecodeErrorSets(Value).Decode;
         }
         pub inline fn decode(
             ctx: Self,
             int_config: bincode.int.Config,
-            value: *T,
+            /// `*T`, where `@typeInfo(T) == .Struct`
+            value: anytype,
             reader: anytype,
             allocator: std.mem.Allocator,
         ) !void {
+            comptime verifyFields(@TypeOf(value.*), FieldFormats) catch |e| @compileError(@errorName(e));
+
             @setEvalBranchQuota(fmt_info.fields.len * 4 + 1);
             inline for (fmt_info.fields, 0..) |field, initialized_fields| {
                 errdefer ctx.freeDecodedFieldsPartial(int_config, value, initialized_fields, allocator);
@@ -97,16 +112,18 @@ pub fn Format(comptime T: type, comptime FieldFormats: type) type {
         pub inline fn freeDecoded(
             ctx: Self,
             int_config: bincode.int.Config,
-            value: *const T,
+            /// `*const T`, where `@typeInfo(T) == .Struct`
+            value: anytype,
             allocator: std.mem.Allocator,
         ) void {
+            comptime verifyFields(@TypeOf(value.*), FieldFormats) catch |e| @compileError(@errorName(e));
             ctx.freeDecodedFieldsPartial(int_config, value, fmt_info.fields.len, allocator);
         }
 
         inline fn freeDecodedFieldsPartial(
             ctx: Self,
             int_config: bincode.int.Config,
-            value: *const T,
+            value: anytype,
             comptime up_to: usize,
             allocator: std.mem.Allocator,
         ) void {

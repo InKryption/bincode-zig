@@ -204,7 +204,7 @@ test "encode/decode tuple of things" {
         g: ?[]const u16,
         h: ?u64,
 
-        const tuple_fmt = tuple.format(@This(), .{
+        const tuple_fmt = tuple.format(.{
             .a = byte.format,
             .b = int.format(.unrounded),
             .c = list.format(byte.format, .encode_len_based_on_type),
