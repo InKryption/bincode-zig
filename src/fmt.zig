@@ -2,6 +2,7 @@
 
 pub const byte = @import("fmt/byte.zig");
 pub const int = @import("fmt/int.zig");
+pub const optional = @import("fmt/optional.zig");
 pub const list = @import("fmt/list.zig");
 pub const tuple = @import("fmt/tuple.zig");
 
@@ -200,6 +201,8 @@ test "encode/decode tuple of things" {
         d: []const u16,
         e: [2]u64,
         f: @Vector(4, u16),
+        g: ?[]const u16,
+        h: ?u64,
 
         const tuple_fmt = tuple.format(@This(), .{
             .a = byte.format,
@@ -208,6 +211,8 @@ test "encode/decode tuple of things" {
             .d = list.format(int.format(.unrounded), .encode_len_based_on_type),
             .e = list.format(int.format(.unrounded), .encode_len_based_on_type),
             .f = list.format(int.format(.unrounded), .encode_len_based_on_type),
+            .g = optional.format(list.format(int.format(.unrounded), .encode_len_based_on_type)),
+            .h = optional.format(int.format(.unrounded)),
         });
     };
 
@@ -222,6 +227,8 @@ test "encode/decode tuple of things" {
         .d = &.{ 123, 456, 789, 1011 },
         .e = .{ 6, 7 },
         .f = .{ 32, 33, 34, 75 },
+        .g = &.{ 1, 2, 3, 4, 5, 6 },
+        .h = null,
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 
