@@ -7,6 +7,8 @@ pub const list = @import("fmt/list.zig");
 pub const tuple = @import("fmt/tuple.zig");
 pub const tag_union = @import("fmt/tag_union.zig");
 
+pub const array_list = @import("fmt/array_list.zig");
+
 pub fn encode(
     /// Must allow `DataFormat(@TypeOf(ctx))`.
     ctx: anytype,
@@ -20,6 +22,7 @@ pub fn encode(
     /// The stream that the encoded data will be written to.
     writer: anytype,
 ) (DataFormat(@TypeOf(ctx)).EncodeError(@TypeOf(value.*)) || @TypeOf(writer).Error)!void {
+    @setEvalBranchQuota(10_000); // generous baseline for minimally complex data structures
     if (@TypeOf(writer) != std.io.AnyWriter) {
         const any_writer: std.io.AnyWriter = writer.any();
         return @errorCast(encode(ctx, int_config, value, any_writer));
@@ -41,6 +44,7 @@ pub fn decode(
     reader: anytype,
     allocator: std.mem.Allocator,
 ) (DataFormat(@TypeOf(ctx)).DecodeError(@TypeOf(value.*)) || @TypeOf(reader).Error)!void {
+    @setEvalBranchQuota(10_000); // generous baseline for minimally complex data structures
     if (@TypeOf(reader) != std.io.AnyReader) {
         const any_reader: std.io.AnyReader = reader.any();
         return @errorCast(decode(ctx, int_config, value, any_reader, allocator));
@@ -59,6 +63,7 @@ pub fn decodeCopy(
     reader: anytype,
     allocator: std.mem.Allocator,
 ) (DataFormat(@TypeOf(ctx)).DecodeError(T) || @TypeOf(reader).Error)!T {
+    @setEvalBranchQuota(10_000); // generous baseline for minimally complex data structures
     var value: T = undefined;
     try decode(ctx, int_config, &value, reader, allocator);
     return value;
@@ -117,10 +122,11 @@ pub fn DataFormat(comptime Ctx: type) type {
             /// The stream that the encoded data will be written to.
             writer: anytype,
         ) (EncodeError(@TypeOf(value.*)) || @TypeOf(writer).Error)!void {
+            @setEvalBranchQuota(1000);
             make_const: {
                 const const_value = makeConstPtr(value);
                 if (@TypeOf(const_value) == @TypeOf(value)) break :make_const;
-                return cdf.encode(int_config, writer, const_value);
+                return cdf.encode(int_config, const_value, writer);
             }
 
             const ptr_info = @typeInfo(@TypeOf(value)).Pointer;
@@ -150,6 +156,7 @@ pub fn DataFormat(comptime Ctx: type) type {
             reader: anytype,
             allocator: std.mem.Allocator,
         ) (DecodeError(@TypeOf(value.*)) || @TypeOf(reader).Error)!void {
+            @setEvalBranchQuota(1000);
             const ptr_info = @typeInfo(@TypeOf(value)).Pointer;
             if (ptr_info.size != .One) {
                 @compileError("Expected `*T`, got " ++ @typeName(@TypeOf(value)));
@@ -167,6 +174,7 @@ pub fn DataFormat(comptime Ctx: type) type {
             value: anytype,
             allocator: std.mem.Allocator,
         ) void {
+            @setEvalBranchQuota(1000);
             make_const: {
                 const const_value = makeConstPtr(value);
                 if (@TypeOf(const_value) == @TypeOf(value)) break :make_const;
@@ -205,6 +213,8 @@ test "encode/decode tuple of things" {
         g: ?[]const u16,
         h: ?u64,
         i: [3]FooBarBaz,
+        j: std.ArrayListAlignedUnmanaged(u32, 1),
+        k: []const []const u8,
 
         const FooBarBaz = union(enum) {
             foo: u32,
@@ -227,6 +237,8 @@ test "encode/decode tuple of things" {
             .g = optional.format(list.format(int.format(.unrounded), .encode_len_based_on_type)),
             .h = optional.format(int.format(.unrounded)),
             .i = list.format(FooBarBaz.union_fmt, .encode_len_based_on_type),
+            .j = array_list.format(int.format(.rounded_type)),
+            .k = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
         });
     };
 
@@ -248,6 +260,8 @@ test "encode/decode tuple of things" {
             .bar,
             .{ .baz = "ao".* },
         },
+        .j = .{},
+        .k = &.{ "foo", "bar", "baz" },
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 
