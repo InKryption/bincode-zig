@@ -27,7 +27,7 @@ pub fn Format(comptime PayloadCtx: type) type {
         }
 
         pub fn DecodeError(comptime Value: type) type {
-            return bincode.fmt.byte.Format.DecodeError || DataFormat(PayloadCtx).DecodeError(@typeInfo(Value).Optional.child);
+            return bincode.fmt.byte.Format.DecodeError(u8) || DataFormat(PayloadCtx).DecodeError(@typeInfo(Value).Optional.child);
         }
         pub inline fn decode(
             ctx: Self,

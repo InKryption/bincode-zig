@@ -32,22 +32,30 @@ pub fn Format(comptime encoding: Encoding) type {
                 })),
                 .tag_value => @intFromEnum(value.*),
             };
-            try int_format.encode(int_config, &int_value, writer);
+            const encode_as_byte = switch (encoding) {
+                .tag_index_u32 => false,
+                .tag_value => @bitSizeOf(T) <= 8,
+            };
+            if (encode_as_byte) {
+                try bincode.fmt.byte.format.encode(int_config, &int_value, writer);
+            } else {
+                try int_format.encode(int_config, &int_value, writer);
+            }
         }
 
         pub fn DecodeError(comptime Value: type) type {
             const TagError = switch (@typeInfo(Value)) {
                 else => return error{},
                 .Enum => |info| switch (encoding) {
-                    .tag_value => blk: {
-                        if (!info.is_exhaustive) break :blk error{};
-                        if (info.fields.len == std.math.maxInt(info.tag_type)) break :blk error{};
-                        break :blk error{EnumInvalidTagValue};
-                    },
                     .tag_index_u32 => blk: {
                         const IndexInt = std.math.IntFittingRange(0, info.fields.len);
                         if (bincode.int.Type.fromType(IndexInt) != null) break :blk error{};
                         break :blk error{EnumInvalidIndexValue};
+                    },
+                    .tag_value => blk: {
+                        if (!info.is_exhaustive) break :blk error{};
+                        if (info.fields.len == std.math.maxInt(info.tag_type)) break :blk error{};
+                        break :blk error{EnumInvalidTagValue};
                     },
                 },
             };
@@ -63,13 +71,23 @@ pub fn Format(comptime encoding: Encoding) type {
         ) !void {
             const T = @TypeOf(value.*);
             const int_value = blk: {
+                const encode_as_byte = switch (encoding) {
+                    .tag_index_u32 => false,
+                    .tag_value => @bitSizeOf(T) <= 8,
+                };
                 const EnumTag = @typeInfo(T).Enum.tag_type;
                 const Int = comptime switch (encoding) {
                     .tag_index_u32 => u32,
-                    .tag_value => bincode.int.Type.fromTypeRounded(EnumTag).?.ToType(),
+                    .tag_value => if (encode_as_byte) EnumTag else bincode.int.Type.fromTypeRounded(EnumTag).?.ToType(),
                 };
+
                 var int_value: Int = undefined;
-                try int_format.decode(int_config, &int_value, reader, allocator);
+                if (encode_as_byte) {
+                    try bincode.fmt.byte.format.decode(int_config, &int_value, reader, allocator);
+                } else {
+                    try int_format.decode(int_config, &int_value, reader, allocator);
+                }
+
                 break :blk int_value;
             };
             value.* = switch (encoding) {
@@ -78,8 +96,13 @@ pub fn Format(comptime encoding: Encoding) type {
                     if (int_value >= values.len) return DecodeError(T).EnumInvalidIndexValue;
                     break :blk values[int_value];
                 },
-                .tag_value => std.meta.intToEnum(T, int_value) catch |err| switch (err) {
-                    error.InvalidEnumTag => return DecodeError(T).EnumInvalidTagValue,
+                .tag_value => blk: {
+                    const info = @typeInfo(T).Enum;
+                    if (!info.is_exhaustive) break :blk @enumFromInt(int_value);
+                    if (info.fields.len == std.math.maxInt(info.tag_type)) break :blk @enumFromInt(int_value);
+                    break :blk std.meta.intToEnum(T, int_value) catch |err| switch (err) {
+                        error.InvalidEnumTag => return DecodeError(T).EnumInvalidTagValue,
+                    };
                 },
             };
         }

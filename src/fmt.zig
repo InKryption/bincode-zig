@@ -216,7 +216,7 @@ test "encode/decode tuple of things" {
         i: [3]FooBarBaz,
         j: std.ArrayListAlignedUnmanaged(u32, 1),
         k: []const []const u8,
-        l: enum(u9) { fizz, buzz },
+        l: enum(u1) { fizz, buzz },
 
         const FooBarBaz = union(enum) {
             foo: u32,
@@ -241,7 +241,7 @@ test "encode/decode tuple of things" {
             .i = list.format(FooBarBaz.union_fmt, .encode_len_based_on_type),
             .j = array_list.format(int.format(.rounded)),
             .k = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
-            .l = enumeration.format(.tag_index_u32),
+            .l = enumeration.format(.tag_value),
         });
     };
 
