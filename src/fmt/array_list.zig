@@ -107,9 +107,9 @@ pub fn Format(comptime ChildCtx: type) type {
             ctx.listFmt().freeDecoded(int_config, &value.items, allocator);
         }
 
-        const ListFmt = bincode.fmt.list.Format(ChildCtx, .encode_len_always);
+        const ListFmt = bincode.fmt.DataFormat(bincode.fmt.list.Format(ChildCtx, .encode_len_always));
         inline fn listFmt(ctx: Self) ListFmt {
-            return bincode.fmt.list.format(ctx.child, .encode_len_always);
+            return bincode.fmt.dataFormat(bincode.fmt.list.format(ctx.child, .encode_len_always));
         }
     };
 }
@@ -118,5 +118,3 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;

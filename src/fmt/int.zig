@@ -1,4 +1,4 @@
-pub const RoundingMode = enum { unrounded, rounded_type };
+pub const RoundingMode = enum { unrounded, rounded };
 
 pub inline fn format(comptime rounding_mode: RoundingMode) Format(rounding_mode) {
     return .{};
@@ -51,16 +51,15 @@ pub fn Format(comptime rounding_mode: RoundingMode) type {
     };
 }
 
-inline fn intTypeFrom(comptime T: type, rounding_mode: RoundingMode) ?bincode.int.IntType {
+inline fn intTypeFrom(comptime T: type, rounding_mode: RoundingMode) ?bincode.int.Type {
     comptime return switch (rounding_mode) {
-        .unrounded => bincode.int.IntType.fromType(T),
-        .rounded_type => bincode.int.IntType.fromTypeRounded(T),
+        .unrounded => bincode.int.Type.fromType(T),
+        .rounded => bincode.int.Type.fromTypeRounded(T),
     };
 }
 
 const bincode = @import("../bincode.zig");
 const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;
 
 const std = @import("std");
 const assert = std.debug.assert;

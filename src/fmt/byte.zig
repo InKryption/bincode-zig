@@ -51,4 +51,3 @@ pub const Format = struct {
 const std = @import("std");
 
 const bincode = @import("../bincode.zig");
-const dataFormat = bincode.fmt.dataFormat;

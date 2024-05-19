@@ -16,7 +16,7 @@ pub const Config = struct {
     int_encoding: Encoding,
 };
 
-pub const IntType = enum {
+pub const Type = enum {
     //! This does not include `u8`/`i8`, because byte-sized integers
     //! should always be encoded directly as bytes, irrespective of
     //! the encoding of integers.
@@ -36,35 +36,35 @@ pub const IntType = enum {
     usize,
     isize,
 
-    pub fn fromTypeRounded(comptime T: type) ?IntType {
+    pub fn fromTypeRounded(comptime T: type) ?Type {
         if (fromType(T)) |int_type| return int_type;
         const info = @typeInfo(T).Int;
         const Rounded = std.meta.Int(info.signedness, std.math.ceilPowerOfTwo(u16, info.bits) catch return null);
         return fromType(Rounded);
     }
 
-    pub fn fromType(comptime T: type) ?IntType {
+    pub fn fromType(comptime T: type) ?Type {
         return switch (T) {
-            Type(.u16) => .u16,
-            Type(.i16) => .i16,
+            ToType(.u16) => .u16,
+            ToType(.i16) => .i16,
 
-            Type(.u32) => .u32,
-            Type(.i32) => .i32,
+            ToType(.u32) => .u32,
+            ToType(.i32) => .i32,
 
-            Type(.u64) => .u64,
-            Type(.i64) => .i64,
+            ToType(.u64) => .u64,
+            ToType(.i64) => .i64,
 
-            Type(.u128) => .u128,
-            Type(.i128) => .i128,
+            ToType(.u128) => .u128,
+            ToType(.i128) => .i128,
 
-            Type(.usize) => .usize,
-            Type(.isize) => .isize,
+            ToType(.usize) => .usize,
+            ToType(.isize) => .isize,
 
             else => null,
         };
     }
 
-    pub fn Type(comptime int_type: IntType) type {
+    pub fn ToType(comptime int_type: Type) type {
         return switch (int_type) {
             .u16 => u16,
             .i16 => i16,
@@ -83,11 +83,11 @@ pub const IntType = enum {
         };
     }
 
-    pub fn EncodedType(comptime int_type: IntType) type {
+    pub fn EncodedType(comptime int_type: Type) type {
         return switch (int_type) {
             .usize => u64,
             .isize => i64,
-            else => |tag| tag.Type(),
+            else => |tag| tag.ToType(),
         };
     }
 };
@@ -95,8 +95,8 @@ pub const IntType = enum {
 pub fn writeInt(
     writer: anytype,
     config: Config,
-    comptime int_type: IntType,
-    value: int_type.Type(),
+    comptime int_type: Type,
+    value: int_type.ToType(),
 ) @TypeOf(writer).Error!void {
     if (@TypeOf(writer) != std.io.AnyWriter) {
         const any_writer: std.io.AnyWriter = writer.any();
@@ -137,8 +137,8 @@ pub const ReadIntError = error{
 pub inline fn readInt(
     reader: anytype,
     config: Config,
-    comptime int_type: IntType,
-) (@TypeOf(reader).Error || ReadIntError)!int_type.Type() {
+    comptime int_type: Type,
+) (@TypeOf(reader).Error || ReadIntError)!int_type.ToType() {
     if (@TypeOf(reader) != std.io.AnyReader) {
         const any_writer: std.io.AnyReader = reader.any();
         return @errorCast(readInt(any_writer, config, int_type));
@@ -199,9 +199,9 @@ fn testWriteReadInt(config: Config, values: anytype) !void {
 
     switch (@typeInfo(@TypeOf(values))) {
         .Pointer, .Array, .Vector => //
-        for (values) |value| try writeInt(writer, config, IntType.fromTypeRounded(@TypeOf(value)).?, value),
+        for (values) |value| try writeInt(writer, config, Type.fromTypeRounded(@TypeOf(value)).?, value),
         .Struct => inline //
-        for (values) |value| try writeInt(writer, config, IntType.fromTypeRounded(@TypeOf(value)).?, value),
+        for (values) |value| try writeInt(writer, config, Type.fromTypeRounded(@TypeOf(value)).?, value),
 
         else => @compileError("Unsupported list type: " ++ @typeName(@TypeOf(values))),
     }
@@ -210,9 +210,9 @@ fn testWriteReadInt(config: Config, values: anytype) !void {
 
     switch (@typeInfo(@TypeOf(values))) {
         .Pointer, .Array, .Vector => //
-        for (values) |value| try std.testing.expectEqual(value, try readInt(reader, config, IntType.fromTypeRounded(@TypeOf(value)).?)),
+        for (values) |value| try std.testing.expectEqual(value, try readInt(reader, config, Type.fromTypeRounded(@TypeOf(value)).?)),
         .Struct => inline //
-        for (values) |value| try std.testing.expectEqual(value, try readInt(reader, config, IntType.fromTypeRounded(@TypeOf(value)).?)),
+        for (values) |value| try std.testing.expectEqual(value, try readInt(reader, config, Type.fromTypeRounded(@TypeOf(value)).?)),
 
         else => @compileError("Unsupported list type: " ++ @typeName(@TypeOf(values))),
     }
