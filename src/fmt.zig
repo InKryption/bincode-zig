@@ -2,6 +2,7 @@
 
 pub const byte = @import("fmt/byte.zig");
 pub const int = @import("fmt/int.zig");
+pub const float = @import("fmt/float.zig");
 pub const optional = @import("fmt/optional.zig");
 pub const list = @import("fmt/list.zig");
 pub const tuple = @import("fmt/tuple.zig");
@@ -217,6 +218,7 @@ test "encode/decode tuple of things" {
         j: std.ArrayListAlignedUnmanaged(u32, 1),
         k: []const []const u8,
         l: enum(u1) { fizz, buzz },
+        m: struct { f32, f64 },
 
         const FooBarBaz = union(enum) {
             foo: u32,
@@ -242,6 +244,7 @@ test "encode/decode tuple of things" {
             .j = array_list.format(int.format(.rounded)),
             .k = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
             .l = enumeration.format(.tag_value),
+            .m = tuple.format(.{ float.format, float.format }),
         });
     };
 
@@ -266,6 +269,7 @@ test "encode/decode tuple of things" {
         .j = .{},
         .k = &.{ "foo", "bar", "baz" },
         .l = .fizz,
+        .m = .{ 1.234, 56.789 },
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 
