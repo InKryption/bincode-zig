@@ -10,6 +10,7 @@ pub const tag_union = @import("fmt/tag_union.zig");
 pub const enumeration = @import("fmt/enumeration.zig");
 
 pub const array_list = @import("fmt/array_list.zig");
+pub const array_hash_map = @import("fmt/array_hash_map.zig");
 
 pub fn encode(
     /// Must allow `DataFormat(@TypeOf(ctx))`.
@@ -109,6 +110,7 @@ pub fn DataFormat(comptime Ctx: type) type {
         /// `CtxNamespace.EncodeError` must either be an error set,
         /// or a function that returns an error set based on `Value`.
         pub fn EncodeError(comptime Value: type) type {
+            if (@sizeOf(Value) == 0) return error{};
             if (@TypeOf(CtxNamespace.EncodeError) == type) return CtxNamespace.EncodeError;
             return CtxNamespace.EncodeError(Value);
         }
@@ -135,12 +137,14 @@ pub fn DataFormat(comptime Ctx: type) type {
             if (ptr_info.size != .One) {
                 @compileError("Expected `*const T`, got " ++ @typeName(@TypeOf(value)));
             }
+            if (@sizeOf(@TypeOf(value.*)) == 0) return;
             return cdf.ctx.encode(int_config, value, writer);
         }
 
         /// `CtxNamespace.DecodeError` must either be an error set,
         /// or a function that returns an error set based on `Value`.
         pub fn DecodeError(comptime Value: type) type {
+            if (@sizeOf(Value) == 0) return error{};
             if (@TypeOf(CtxNamespace.DecodeError) == type) return CtxNamespace.DecodeError;
             return CtxNamespace.DecodeError(Value);
         }
@@ -163,6 +167,7 @@ pub fn DataFormat(comptime Ctx: type) type {
             if (ptr_info.size != .One) {
                 @compileError("Expected `*T`, got " ++ @typeName(@TypeOf(value)));
             }
+            if (@sizeOf(@TypeOf(value.*)) == 0) return;
             value.* = undefined;
             return cdf.ctx.decode(int_config, value, reader, allocator);
         }
@@ -182,6 +187,8 @@ pub fn DataFormat(comptime Ctx: type) type {
                 if (@TypeOf(const_value) == @TypeOf(value)) break :make_const;
                 return cdf.freeDecoded(int_config, const_value, allocator);
             }
+
+            if (@sizeOf(@TypeOf(value.*)) == 0) return;
             return cdf.ctx.freeDecoded(int_config, value, allocator);
         }
 
@@ -195,10 +202,12 @@ pub fn DataFormat(comptime Ctx: type) type {
     };
 }
 
-test "encode/decode tuple of things" {
+comptime {
     const A = struct {};
-    comptime assert(DataFormat(DataFormat(A)) == DataFormat(A));
+    assert(DataFormat(DataFormat(A)) == DataFormat(A));
+}
 
+test "encode/decode tuple of things" {
     var buffer: [4096 * 16]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buffer);
 
@@ -215,11 +224,10 @@ test "encode/decode tuple of things" {
         g: ?[]const u16,
         h: ?u64,
         i: [3]FooBarBaz,
-        j: std.ArrayListAlignedUnmanaged(u32, 1),
-        k: []const []const u8,
-        l: enum(u1) { fizz, buzz },
-        m: struct { f32, f64 },
-        n: [2]bool,
+        j: []const []const u8,
+        k: enum(u1) { fizz, buzz },
+        l: struct { f32, f64 },
+        m: [2]bool,
 
         const FooBarBaz = union(enum) {
             foo: u32,
@@ -242,11 +250,10 @@ test "encode/decode tuple of things" {
             .g = optional.format(list.format(int.format(.unrounded), .encode_len_based_on_type)),
             .h = optional.format(int.format(.unrounded)),
             .i = list.format(FooBarBaz.union_fmt, .encode_len_based_on_type),
-            .j = array_list.format(int.format(.rounded)),
-            .k = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
-            .l = enumeration.format(.tag_value),
-            .m = tuple.format(.{ float.format, float.format }),
-            .n = list.format(byte.format, .encode_len_based_on_type),
+            .j = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
+            .k = enumeration.format(.tag_value),
+            .l = tuple.format(.{ float.format, float.format }),
+            .m = list.format(byte.format, .encode_len_based_on_type),
         });
     };
 
@@ -268,11 +275,10 @@ test "encode/decode tuple of things" {
             .bar,
             .{ .baz = "ao".* },
         },
-        .j = .{},
-        .k = &.{ "foo", "bar", "baz" },
-        .l = .fizz,
-        .m = .{ 1.234, 56.789 },
-        .n = .{ false, true },
+        .j = &.{ "foo", "bar", "baz" },
+        .k = .fizz,
+        .l = .{ 1.234, 56.789 },
+        .m = .{ false, true },
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 
@@ -282,6 +288,74 @@ test "encode/decode tuple of things" {
     defer freeDecoded(T.tuple_fmt, int_config, &decoded, std.testing.allocator);
 
     try std.testing.expectEqualDeep(value, decoded);
+}
+
+test array_list {
+    var buffer: [4096 * 16]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&buffer);
+
+    const writer = fbs.writer();
+    const reader = fbs.reader();
+
+    const int_config: bincode.int.Config = .{
+        .endian = .little,
+        .int_encoding = .varint,
+    };
+
+    const elem_format = tuple.format(.{ float.format, byte.format, list.format(byte.format, .encode_len_based_on_type) });
+    var data = std.ArrayList(struct { f64, bool, []const u8 }).init(std.testing.allocator);
+    defer data.deinit();
+
+    try data.appendSlice(&.{
+        .{ 0.1, true, "foo" },
+        .{ 0.34441, true, "bar" },
+        .{ -126634.3, false, "baz" },
+        .{ -1.001, true, "fizz" },
+        .{ 0, false, "buzz" },
+    });
+
+    try encode(array_list.format(elem_format), int_config, &data, writer);
+
+    fbs.reset();
+
+    const decoded = try decodeCopy(array_list.format(elem_format), int_config, std.ArrayList(struct { f64, bool, []const u8 }), reader, std.testing.allocator);
+    defer freeDecoded(array_list.format(elem_format), int_config, &decoded, std.testing.allocator);
+
+    try std.testing.expectEqualDeep(data.items, decoded.items);
+}
+
+test array_hash_map {
+    var buffer: [4096 * 16]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&buffer);
+
+    const writer = fbs.writer();
+    const reader = fbs.reader();
+
+    const int_config: bincode.int.Config = .{
+        .endian = .little,
+        .int_encoding = .varint,
+    };
+
+    const key_fmt = list.format(byte.format, .encode_len_based_on_type);
+    const val_fmt = list.format(int.format(.unrounded), .encode_len_based_on_type);
+    var data = std.StringArrayHashMap([]const u32).init(std.testing.allocator);
+    defer data.deinit();
+
+    try data.put("foo", &.{ 32, 33 });
+    try data.put("bar", &.{ 111111, 111112, 111113, 111114 });
+    try data.put("baz", &.{ 127, 256, 8 });
+    try data.put("fizz", &.{ 1234, 4321, 123, 321, 12, 21, 1 });
+    try data.put("buzz", &.{});
+
+    try encode(array_hash_map.format(key_fmt, val_fmt, .err_on_duplicate), int_config, &data, writer);
+
+    fbs.reset();
+
+    const decoded = try decodeCopy(array_hash_map.format(key_fmt, val_fmt, .err_on_duplicate), int_config, std.StringArrayHashMap([]const u32), reader, std.testing.allocator);
+    defer freeDecoded(array_hash_map.format(key_fmt, val_fmt, .err_on_duplicate), int_config, &decoded, std.testing.allocator);
+
+    try std.testing.expectEqualDeep(data.keys(), decoded.keys());
+    try std.testing.expectEqualDeep(data.values(), decoded.values());
 }
 
 const std = @import("std");

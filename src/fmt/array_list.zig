@@ -5,44 +5,6 @@ pub inline fn format(
     return .{ .child = child_ctx };
 }
 
-const ArrayListInfo = struct {
-    Slice: type,
-    alignment: comptime_int,
-    allocator_kind: AllocatorKind,
-
-    const AllocatorKind = enum {
-        managed,
-        unmanaged,
-    };
-
-    fn Element(comptime ali: ArrayListInfo) type {
-        return @typeInfo(ali.Slice).Pointer.child;
-    }
-};
-inline fn arrayListInfo(comptime ArrayListType: type) ?ArrayListInfo {
-    comptime {
-        if (@typeInfo(ArrayListType) != .Struct) return null;
-        if (!@hasDecl(ArrayListType, "Slice")) return null;
-        if (@TypeOf(ArrayListType.Slice) != type) return null;
-        const Slice = ArrayListType.Slice;
-        const ptr_info = switch (@typeInfo(Slice)) {
-            .Pointer => |info| info,
-            else => return null,
-        };
-        if (ptr_info.size != .Slice) return null;
-        const allocator_kind: ArrayListInfo.AllocatorKind = switch (ArrayListType) {
-            std.ArrayListAlignedUnmanaged(ptr_info.child, ptr_info.alignment) => .unmanaged,
-            std.ArrayListAligned(ptr_info.child, ptr_info.alignment) => .managed,
-            else => return null,
-        };
-        return .{
-            .Slice = Slice,
-            .alignment = ptr_info.alignment,
-            .allocator_kind = allocator_kind,
-        };
-    }
-}
-
 pub fn Format(comptime ChildCtx: type) type {
     return struct {
         child: ChildCtx,
@@ -87,6 +49,7 @@ pub fn Format(comptime ChildCtx: type) type {
             try ctx.listFmt().decode(int_config, &slice, reader, allocator);
 
             var array_list = std.ArrayListAlignedUnmanaged(array_list_info.Element(), array_list_info.alignment).initBuffer(slice);
+            array_list.items.len = slice.len;
             value.* = switch (array_list_info.allocator_kind) {
                 .managed => array_list.toManaged(allocator),
                 .unmanaged => array_list,
@@ -104,7 +67,7 @@ pub fn Format(comptime ChildCtx: type) type {
         ) void {
             const T = @TypeOf(value.*);
             comptime if (arrayListInfo(T) == null) @compileError("Expected `std.ArrayListAligned(T, alignment)` or `std.ArrayListAlignedUnmanaged(T, alignment)`, got `" ++ @typeName(T) ++ "`");
-            ctx.listFmt().freeDecoded(int_config, &value.items, allocator);
+            ctx.listFmt().freeDecoded(int_config, &value.allocatedSlice(), allocator);
         }
 
         const ListFmt = bc.fmt.DataFormat(bc.fmt.list.Format(ChildCtx, .encode_len_always));
@@ -112,6 +75,44 @@ pub fn Format(comptime ChildCtx: type) type {
             return bc.fmt.dataFormat(bc.fmt.list.format(ctx.child, .encode_len_always));
         }
     };
+}
+
+const ArrayListInfo = struct {
+    Slice: type,
+    alignment: comptime_int,
+    allocator_kind: AllocatorKind,
+
+    const AllocatorKind = enum {
+        managed,
+        unmanaged,
+    };
+
+    fn Element(comptime ali: ArrayListInfo) type {
+        return @typeInfo(ali.Slice).Pointer.child;
+    }
+};
+inline fn arrayListInfo(comptime ArrayListType: type) ?ArrayListInfo {
+    comptime {
+        if (@typeInfo(ArrayListType) != .Struct) return null;
+        if (!@hasDecl(ArrayListType, "Slice")) return null;
+        if (@TypeOf(ArrayListType.Slice) != type) return null;
+        const Slice = ArrayListType.Slice;
+        const ptr_info = switch (@typeInfo(Slice)) {
+            .Pointer => |info| info,
+            else => return null,
+        };
+        if (ptr_info.size != .Slice) return null;
+        const allocator_kind: ArrayListInfo.AllocatorKind = switch (ArrayListType) {
+            std.ArrayListAlignedUnmanaged(ptr_info.child, ptr_info.alignment) => .unmanaged,
+            std.ArrayListAligned(ptr_info.child, ptr_info.alignment) => .managed,
+            else => return null,
+        };
+        return .{
+            .Slice = Slice,
+            .alignment = ptr_info.alignment,
+            .allocator_kind = allocator_kind,
+        };
+    }
 }
 
 const std = @import("std");
