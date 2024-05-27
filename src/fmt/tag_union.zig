@@ -10,7 +10,10 @@ pub inline fn format(
 
 fn verifyFields(comptime T: type, comptime FieldFormats: type) !void {
     comptime {
-        const data_info = @typeInfo(T).Union;
+        const data_info = switch (@typeInfo(T)) {
+            .Union => |info| info,
+            else => return @field(anyerror, "Expected union type, got " ++ @typeName(T)),
+        };
         @setEvalBranchQuota(data_info.fields.len + 1);
 
         const FieldFormatId = std.meta.FieldEnum(FieldFormats);
@@ -62,11 +65,11 @@ pub fn Format(comptime FieldFormats: type) type {
 
         pub fn EncodeError(comptime Value: type) type {
             verifyFields(Value, FieldFormats) catch return error{};
-            return bincode.fmt.int.Format(.unrounded).EncodeError || EncodeDecodeErrorSets(Value).Encode;
+            return bc.fmt.enumeration.Format(.tag_index_u32).EncodeError || EncodeDecodeErrorSets(Value).Encode;
         }
         pub inline fn encode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             writer: anytype,
@@ -77,10 +80,7 @@ pub fn Format(comptime FieldFormats: type) type {
             @setEvalBranchQuota(fmt_info.fields.len * 3 + 1);
             switch (value.*) {
                 inline else => |*payload_value, tag| {
-                    // take advantage of `std.meta.FieldEnum` always having numerically consecutive tags.
-                    const tag_index: u32 = @intFromEnum(@field(std.meta.FieldEnum(T), @tagName(tag)));
-                    try dataFormat(bincode.fmt.int.format(.unrounded)).encode(int_config, &tag_index, writer);
-
+                    try dataFormat(bc.fmt.enumeration.format(.tag_index_u32)).encode(int_config, &tag, writer);
                     if (@sizeOf(@TypeOf(payload_value.*)) == 0) return;
                     const payload_fmt = dataFormat(@field(ctx.field_fmts, @tagName(tag)));
                     try payload_fmt.encode(int_config, payload_value, writer);
@@ -90,13 +90,13 @@ pub fn Format(comptime FieldFormats: type) type {
 
         pub fn DecodeError(comptime Value: type) type {
             verifyFields(Value, FieldFormats) catch return error{};
-            return error{InvalidDiscriminant} ||
-                bincode.fmt.int.Format(.unrounded).DecodeError ||
-                EncodeDecodeErrorSets(Value).Decode;
+            const Tag = @typeInfo(Value).Union.tag_type orelse return error{};
+            const TagError = bc.fmt.enumeration.Format(.tag_index_u32).DecodeError(Tag);
+            return TagError || EncodeDecodeErrorSets(Value).Decode;
         }
         pub inline fn decode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             reader: anytype,
@@ -105,16 +105,13 @@ pub fn Format(comptime FieldFormats: type) type {
             const T = @TypeOf(value.*);
             comptime verifyFields(@TypeOf(value.*), FieldFormats) catch |e| @compileError(@errorName(e));
 
-            @setEvalBranchQuota(fmt_info.fields.len * 4 + 1);
-            const field_tag_index = blk: {
-                var tag_index: u32 = undefined;
-                try dataFormat(bincode.fmt.int.format(.unrounded)).decode(int_config, &tag_index, reader, allocator);
-                break :blk tag_index;
-            };
-            const field_tag: std.meta.FieldEnum(T) = std.meta.intToEnum(std.meta.FieldEnum(T), field_tag_index) catch |err| switch (err) {
-                error.InvalidEnumTag => return DecodeError(T).InvalidDiscriminant,
+            const field_tag = blk: {
+                var field_tag: @typeInfo(T).Union.tag_type.? = undefined;
+                try dataFormat(bc.fmt.enumeration.format(.tag_index_u32)).decode(int_config, &field_tag, reader, allocator);
+                break :blk field_tag;
             };
 
+            @setEvalBranchQuota(fmt_info.fields.len * 4 + 1);
             switch (field_tag) {
                 inline else => |tag| {
                     value.* = @unionInit(T, @tagName(tag), undefined);
@@ -129,7 +126,7 @@ pub fn Format(comptime FieldFormats: type) type {
 
         pub inline fn freeDecoded(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             allocator: std.mem.Allocator,
@@ -146,8 +143,8 @@ pub fn Format(comptime FieldFormats: type) type {
     };
 }
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
+const dataFormat = bc.fmt.dataFormat;
 
 const std = @import("std");

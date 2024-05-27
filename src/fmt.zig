@@ -219,6 +219,7 @@ test "encode/decode tuple of things" {
         k: []const []const u8,
         l: enum(u1) { fizz, buzz },
         m: struct { f32, f64 },
+        n: [2]bool,
 
         const FooBarBaz = union(enum) {
             foo: u32,
@@ -245,6 +246,7 @@ test "encode/decode tuple of things" {
             .k = list.format(list.format(byte.format, .encode_len_always), .encode_len_always),
             .l = enumeration.format(.tag_value),
             .m = tuple.format(.{ float.format, float.format }),
+            .n = list.format(byte.format, .encode_len_based_on_type),
         });
     };
 
@@ -270,6 +272,7 @@ test "encode/decode tuple of things" {
         .k = &.{ "foo", "bar", "baz" },
         .l = .fizz,
         .m = .{ 1.234, 56.789 },
+        .n = .{ false, true },
     };
     try encode(T.tuple_fmt, int_config, &value, writer);
 

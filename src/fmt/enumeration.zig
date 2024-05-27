@@ -14,13 +14,13 @@ pub fn Format(comptime encoding: Encoding) type {
     return struct {
         const Self = @This();
 
-        const IntFormat = bincode.fmt.int.Format(.rounded);
-        const int_format = bincode.fmt.dataFormat(bincode.fmt.int.format(.rounded));
+        const IntFormat = bc.fmt.int.Format(.rounded);
+        const int_format = bc.fmt.dataFormat(bc.fmt.int.format(.rounded));
 
         pub const EncodeError = IntFormat.EncodeError;
         pub inline fn encode(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Enum`
             value: anytype,
             writer: anytype,
@@ -37,7 +37,7 @@ pub fn Format(comptime encoding: Encoding) type {
                 .tag_value => @bitSizeOf(T) <= 8,
             };
             if (encode_as_byte) {
-                try bincode.fmt.byte.format.encode(int_config, &int_value, writer);
+                try bc.fmt.byte.format.encode(int_config, &int_value, writer);
             } else {
                 try int_format.encode(int_config, &int_value, writer);
             }
@@ -49,7 +49,7 @@ pub fn Format(comptime encoding: Encoding) type {
                 .Enum => |info| switch (encoding) {
                     .tag_index_u32 => blk: {
                         const IndexInt = std.math.IntFittingRange(0, info.fields.len);
-                        if (bincode.int.Type.fromType(IndexInt) != null) break :blk error{};
+                        if (bc.int.Type.fromType(IndexInt) != null) break :blk error{};
                         break :blk error{EnumInvalidIndexValue};
                     },
                     .tag_value => blk: {
@@ -63,7 +63,7 @@ pub fn Format(comptime encoding: Encoding) type {
         }
         pub inline fn decode(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where `@typeInfo(T) == .Enum`
             value: anytype,
             reader: anytype,
@@ -78,12 +78,12 @@ pub fn Format(comptime encoding: Encoding) type {
                 const EnumTag = @typeInfo(T).Enum.tag_type;
                 const Int = comptime switch (encoding) {
                     .tag_index_u32 => u32,
-                    .tag_value => if (encode_as_byte) EnumTag else bincode.int.Type.fromTypeRounded(EnumTag).?.ToType(),
+                    .tag_value => if (encode_as_byte) EnumTag else bc.int.Type.fromTypeRounded(EnumTag).?.ToType(),
                 };
 
                 var int_value: Int = undefined;
                 if (encode_as_byte) {
-                    try bincode.fmt.byte.format.decode(int_config, &int_value, reader, allocator);
+                    try bc.fmt.byte.format.decode(int_config, &int_value, reader, allocator);
                 } else {
                     try int_format.decode(int_config, &int_value, reader, allocator);
                 }
@@ -109,7 +109,7 @@ pub fn Format(comptime encoding: Encoding) type {
 
         pub inline fn freeDecoded(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Enum`
             value: anytype,
             allocator: std.mem.Allocator,
@@ -121,8 +121,8 @@ pub fn Format(comptime encoding: Encoding) type {
     };
 }
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
 
 const std = @import("std");
 const assert = std.debug.assert;

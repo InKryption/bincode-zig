@@ -1,3 +1,5 @@
+//! Context for encoding/decoding a list of values, supporting both variable and fixed length list types.
+
 pub const LengthEncoding = enum {
     /// Encode the length if the type is a slice, sentinel terminated pointer,
     /// a pointer to an array, or a pointer to a vector.
@@ -26,13 +28,13 @@ pub fn Format(
         const Self = @This();
 
         pub fn EncodeError(comptime Value: type) type {
-            const LengthErr = if (mustHaveEncodedLength(Value, length_encoding)) DataFormat(bincode.fmt.int.Format(.unrounded)).EncodeError(usize) else error{};
+            const LengthErr = if (mustHaveEncodedLength(Value, length_encoding)) DataFormat(bc.fmt.int.Format(.unrounded)).EncodeError(usize) else error{};
             const ElementErr = DataFormat(ChildCtx).EncodeError(ListElem(Value) orelse @compileError("unsupported list type " ++ @typeName(Value)));
             return LengthErr || ElementErr;
         }
         pub inline fn encode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const L`, where `L` =
             /// `[n]T`                 |
             /// `@Vector(n, T)`        |
@@ -54,7 +56,7 @@ pub fn Format(
                 else => @compileError("unsupported list type `" ++ @typeName(List) ++ "`"),
             };
             if (comptime mustHaveEncodedLength(List, length_encoding)) {
-                try dataFormat(bincode.fmt.int.format(.unrounded)).encode(int_config, &value_len, writer);
+                try dataFormat(bc.fmt.int.format(.unrounded)).encode(int_config, &value_len, writer);
             }
             const closest_ptr = switch (@typeInfo(List)) {
                 .Array, .Vector => value,
@@ -83,7 +85,7 @@ pub fn Format(
                     if (listContantLength(Value) != null) LengthErr = LengthErr || error{
                         ListFormatLengthPrefixMismatch,
                     };
-                    LengthErr = LengthErr || DataFormat(bincode.fmt.int.Format(.unrounded)).DecodeError(usize);
+                    LengthErr = LengthErr || DataFormat(bc.fmt.int.Format(.unrounded)).DecodeError(usize);
                 }
                 break :blk LengthErr;
             };
@@ -91,7 +93,7 @@ pub fn Format(
         }
         pub inline fn decode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*L`, where `L` =
             /// `[n]T`                 |
             /// `@Vector(n, T)`        |
@@ -106,7 +108,7 @@ pub fn Format(
             const List = @TypeOf(value.*);
             const decoded_len = if (comptime !mustHaveEncodedLength(List, length_encoding)) {} else blk: {
                 var decoded_len: usize = undefined;
-                try dataFormat(bincode.fmt.int.format(.unrounded)).decode(int_config, &decoded_len, reader, allocator);
+                try dataFormat(bc.fmt.int.format(.unrounded)).decode(int_config, &decoded_len, reader, allocator);
                 break :blk decoded_len;
             };
 
@@ -220,7 +222,7 @@ pub fn Format(
 
         pub inline fn freeDecoded(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             value: anytype,
             allocator: std.mem.Allocator,
         ) void {
@@ -257,7 +259,7 @@ pub fn Format(
 
         inline fn freeDecodedElemsPartial(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             closest_ptr: anytype,
             up_to: usize,
             allocator: std.mem.Allocator,
@@ -334,6 +336,6 @@ inline fn isVectorPtr(comptime ClosestPtr: type) bool {
 const std = @import("std");
 const assert = std.debug.assert;
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
+const dataFormat = bc.fmt.dataFormat;

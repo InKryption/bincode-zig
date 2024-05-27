@@ -4,7 +4,7 @@ pub const Format = struct {
     pub const EncodeError = error{};
     pub inline fn encode(
         _: Format,
-        int_config: bincode.int.Config,
+        int_config: bc.int.Config,
         /// `*const T`, where `@typeInfo(T) == .Int`
         value: anytype,
         writer: anytype,
@@ -24,7 +24,7 @@ pub const Format = struct {
     pub const DecodeError = error{PrematureEof};
     pub inline fn decode(
         _: Format,
-        int_config: bincode.int.Config,
+        int_config: bc.int.Config,
         /// `*T`, where `@typeInfo(T) == .Int`
         value: anytype,
         reader: anytype,
@@ -51,7 +51,7 @@ pub const Format = struct {
 
     pub inline fn freeDecoded(
         _: Format,
-        int_config: bincode.int.Config,
+        int_config: bc.int.Config,
         /// `*const T`, where `@typeInfo(T) == .Int`
         value: anytype,
         allocator: std.mem.Allocator,
@@ -66,6 +66,6 @@ pub const Format = struct {
     }
 };
 
-const bincode = @import("../bincode.zig");
+const bc = @import("../bincode.zig");
 const std = @import("std");
 const assert = std.debug.assert;

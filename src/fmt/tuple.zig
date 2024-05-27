@@ -70,7 +70,7 @@ pub fn Format(comptime FieldFormats: type) type {
         }
         pub inline fn encode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             writer: anytype,
@@ -91,7 +91,7 @@ pub fn Format(comptime FieldFormats: type) type {
         }
         pub inline fn decode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             reader: anytype,
@@ -111,7 +111,7 @@ pub fn Format(comptime FieldFormats: type) type {
 
         pub inline fn freeDecoded(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Struct`
             value: anytype,
             allocator: std.mem.Allocator,
@@ -122,7 +122,7 @@ pub fn Format(comptime FieldFormats: type) type {
 
         inline fn freeDecodedFieldsPartial(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             value: anytype,
             comptime up_to: usize,
             allocator: std.mem.Allocator,
@@ -137,8 +137,8 @@ pub fn Format(comptime FieldFormats: type) type {
     };
 }
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
+const dataFormat = bc.fmt.dataFormat;
 
 const std = @import("std");

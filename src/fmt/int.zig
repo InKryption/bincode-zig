@@ -11,20 +11,20 @@ pub fn Format(comptime rounding_mode: RoundingMode) type {
         pub const EncodeError = error{};
         pub inline fn encode(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Int`
             value: anytype,
             writer: anytype,
         ) !void {
             const T = @TypeOf(value.*);
             const int_type = intTypeFrom(T, rounding_mode) orelse @compileError("Unsupported integer type " ++ @typeName(T));
-            try bincode.int.writeInt(writer, int_config, int_type, value.*);
+            try bc.int.writeInt(writer, int_config, int_type, value.*);
         }
 
-        pub const DecodeError = bincode.int.ReadIntError;
+        pub const DecodeError = bc.int.ReadIntError;
         pub inline fn decode(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where `@typeInfo(T) == .Int`
             value: anytype,
             reader: anytype,
@@ -33,12 +33,12 @@ pub fn Format(comptime rounding_mode: RoundingMode) type {
             _ = allocator;
             const T = @TypeOf(value.*);
             const int_type = intTypeFrom(T, rounding_mode) orelse @compileError("Unsupported integer type " ++ @typeName(T));
-            value.* = try bincode.int.readInt(reader, int_config, int_type);
+            value.* = try bc.int.readInt(reader, int_config, int_type);
         }
 
         pub inline fn freeDecoded(
             _: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `@typeInfo(T) == .Int`
             value: anytype,
             allocator: std.mem.Allocator,
@@ -51,15 +51,15 @@ pub fn Format(comptime rounding_mode: RoundingMode) type {
     };
 }
 
-inline fn intTypeFrom(comptime T: type, rounding_mode: RoundingMode) ?bincode.int.Type {
+inline fn intTypeFrom(comptime T: type, rounding_mode: RoundingMode) ?bc.int.Type {
     comptime return switch (rounding_mode) {
-        .unrounded => bincode.int.Type.fromType(T),
-        .rounded => bincode.int.Type.fromTypeRounded(T),
+        .unrounded => bc.int.Type.fromType(T),
+        .rounded => bc.int.Type.fromTypeRounded(T),
     };
 }
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
 
 const std = @import("std");
 const assert = std.debug.assert;

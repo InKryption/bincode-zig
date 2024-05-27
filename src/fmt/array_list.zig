@@ -54,7 +54,7 @@ pub fn Format(comptime ChildCtx: type) type {
         }
         pub inline fn encode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where
             /// `T == std.ArrayListAlignedUnmanaged(E, alignment)` or
             /// `T == std.ArrayListAligned(E, alignment)`
@@ -72,7 +72,7 @@ pub fn Format(comptime ChildCtx: type) type {
         }
         pub inline fn decode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where
             /// `T == std.ArrayListAlignedUnmanaged(E, _)` or
             /// `T == std.ArrayListAligned(E, _)`
@@ -95,7 +95,7 @@ pub fn Format(comptime ChildCtx: type) type {
 
         pub inline fn freeDecoded(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where
             /// `T == std.ArrayListAlignedUnmanaged(E, _)` or
             /// `T == std.ArrayListAligned(E, _)`
@@ -107,9 +107,9 @@ pub fn Format(comptime ChildCtx: type) type {
             ctx.listFmt().freeDecoded(int_config, &value.items, allocator);
         }
 
-        const ListFmt = bincode.fmt.DataFormat(bincode.fmt.list.Format(ChildCtx, .encode_len_always));
+        const ListFmt = bc.fmt.DataFormat(bc.fmt.list.Format(ChildCtx, .encode_len_always));
         inline fn listFmt(ctx: Self) ListFmt {
-            return bincode.fmt.dataFormat(bincode.fmt.list.format(ctx.child, .encode_len_always));
+            return bc.fmt.dataFormat(bc.fmt.list.format(ctx.child, .encode_len_always));
         }
     };
 }
@@ -117,4 +117,4 @@ pub fn Format(comptime ChildCtx: type) type {
 const std = @import("std");
 const assert = std.debug.assert;
 
-const bincode = @import("../bincode.zig");
+const bc = @import("../bincode.zig");

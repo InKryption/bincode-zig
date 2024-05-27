@@ -11,27 +11,27 @@ pub fn Format(comptime PayloadCtx: type) type {
         const Self = @This();
 
         pub fn EncodeError(comptime Value: type) type {
-            return bincode.fmt.byte.Format.EncodeError || DataFormat(PayloadCtx).EncodeError(@typeInfo(Value).Optional.child);
+            return bc.fmt.byte.Format.EncodeError || DataFormat(PayloadCtx).EncodeError(@typeInfo(Value).Optional.child);
         }
         pub inline fn encode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `T = ?U`.
             value: anytype,
             writer: anytype,
         ) !void {
             const discriminant_byte: u8 = @intFromBool(value.* != null);
-            try dataFormat(bincode.fmt.byte.format).encode(int_config, &discriminant_byte, writer);
+            try dataFormat(bc.fmt.byte.format).encode(int_config, &discriminant_byte, writer);
             const payload = if (value.*) |*payload| payload else return;
             try dataFormat(ctx.payload).encode(int_config, payload, writer);
         }
 
         pub fn DecodeError(comptime Value: type) type {
-            return bincode.fmt.byte.Format.DecodeError(u8) || DataFormat(PayloadCtx).DecodeError(@typeInfo(Value).Optional.child);
+            return bc.fmt.byte.Format.DecodeError(u8) || DataFormat(PayloadCtx).DecodeError(@typeInfo(Value).Optional.child);
         }
         pub inline fn decode(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*T`, where `T = ?U`.
             value: anytype,
             reader: anytype,
@@ -39,7 +39,7 @@ pub fn Format(comptime PayloadCtx: type) type {
         ) !void {
             const discriminant_byte: u8 = blk: {
                 var discriminant_byte: u8 = undefined;
-                try dataFormat(bincode.fmt.byte.format).decode(int_config, &discriminant_byte, reader, allocator);
+                try dataFormat(bc.fmt.byte.format).decode(int_config, &discriminant_byte, reader, allocator);
                 break :blk discriminant_byte;
             };
             if (discriminant_byte == 0) {
@@ -52,7 +52,7 @@ pub fn Format(comptime PayloadCtx: type) type {
 
         pub inline fn freeDecoded(
             ctx: Self,
-            int_config: bincode.int.Config,
+            int_config: bc.int.Config,
             /// `*const T`, where `T = ?U`.
             value: anytype,
             allocator: std.mem.Allocator,
@@ -63,9 +63,9 @@ pub fn Format(comptime PayloadCtx: type) type {
     };
 }
 
-const bincode = @import("../bincode.zig");
-const DataFormat = bincode.fmt.DataFormat;
-const dataFormat = bincode.fmt.dataFormat;
+const bc = @import("../bincode.zig");
+const DataFormat = bc.fmt.DataFormat;
+const dataFormat = bc.fmt.dataFormat;
 
 const std = @import("std");
 const assert = std.debug.assert;
