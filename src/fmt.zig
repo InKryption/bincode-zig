@@ -6,8 +6,8 @@ pub const float = @import("fmt/float.zig");
 pub const optional = @import("fmt/optional.zig");
 pub const list = @import("fmt/list.zig");
 pub const tuple = @import("fmt/tuple.zig");
-pub const tag_union = @import("fmt/tag_union.zig");
 pub const enumeration = @import("fmt/enumeration.zig");
+pub const tag_union = @import("fmt/tag_union.zig");
 
 pub const array_list = @import("fmt/array_list.zig");
 pub const array_hash_map = @import("fmt/array_hash_map.zig");
